@@ -1,0 +1,12 @@
+The broad goal of this project is to study the effects of phenotypic plasticity on the ruggedness of local fitness landscapes
+TODO: elaborate on more specific goals
+
+Steps in executing this project:
+-run_list is submitted through dist_qsub to generate initial avida data.
+	Output to ../data
+-Avida is run in analyze mode with analyze.cfg to find the dominant genome for each trial run.
+	Output to ../analysis
+-calc-mutant-fitness.py is run to generate all 1-step mutants and evaluate their phenotype in each environment.
+	Output to ../mutant-fitness
+-aggregate-mutant-fitness.py is run to generate summary stats of the phenotypes of n-step mutants in each environment.
+	Output to ../mutant-fitness
