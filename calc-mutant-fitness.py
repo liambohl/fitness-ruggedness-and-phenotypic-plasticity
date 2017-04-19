@@ -7,25 +7,14 @@ import glob
 import os
 import subprocess
 
-# instruction_set_basic = ["if-label", "mov-head", "jmp-head", "get-head", "set-flow", "shift-r", "shift-l", "inc", "dec", "push", "pop", "swap-stk", "swap", "add", "sub", "nand", "h-copy", "h-alloc", "h-divide", "IO", "h-search"]
-# instruction_set_sense = instruction_set_basic + ["sense-react-NAND", "sense-react-NOT"]
-
 instruction_set_basic = "abcdefghijklmnopqrstu"
 instruction_set_sense = "abcdefghijklmnopqrstuvw"
 
-def count_mutants(path, treatment, run, instruction_set):
-	# Get genome
-	filename = glob.glob(path + "env_nand_1_*/final_dominant.dat")[0] # dat file with string genome of final dominant
-	with open(filename, "r") as genome_file:
-		for i in range(16):
-			genome_file.readline()
-		genome_str = genome_file.readline().split()[4] # Genome as string of chars is 4th item on line.
-	mutant_dict = generate_mutants(genome_str, instruction_set)
-	
-	# Generate .org files for each mutant
-	# print_orgs(mutant_set, path)
-	
-	evaluate_genomes(treatment, run, genome_str, mutant_dict, instruction_set)
+def dict_add(d, x):
+	if x in d:
+		d[x] += 1
+	else:
+		d[x] = 1
 
 def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set):
 	# Name of this run
@@ -44,7 +33,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 		not_count = 0		# Number of orgs to perform not
 		
 		# Get phenotype for base organism using -1 as index.
-		analyze(instruction_set, -1, final_dom_gen, run_name, env[0], env[1])
+		analyze(instruction_set, -1, final_dom_gen, run_name, env)
 		base_fitness, base_pnand, base_pnot = get_phenotype(run_name, env, -1)
 		
 		# Get phenotype for each mutant
@@ -67,7 +56,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 				neu_mutations += 1
 		
 		# Output to file
-		out_filename = "data/analysis/{}/env_nand_{}_not_{}/summary.txt".format(run_name, env[0], env[1])
+		out_filename = "../mutant-fitness/{}/env_nand_{}_not_{}/summary.txt".format(run_name, env[0], env[1])
 		with open(out_filename, "w") as summary_file:
 			# Write base organism phenotype
 			summary_file.write("Base organism performed NAND: {}; NOT: {}\n\n".format(base_pnand, base_pnot))
@@ -85,44 +74,35 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 			for stat in stats_tuple:
 				summary_file.write("{:5d} ({:7.2%}) {:s}\n".format(stat[0], round(stat[0] / total_mutations, 4), stat[1]))
 
-def analyze(instruction_set, *argv): #i, org, run_name, nand_val, not_val):
+def analyze(instruction_set, i, org, run_name, env):
 	# Set name of instruction set file
 	if instruction_set == instruction_set_basic:
 		inst_set = "instset-heads.cfg"
 	else:
 		inst_set = "instset-heads-sense.cfg"
 	
-	# Generate properly configured analyze.cfg file
+	# Generate properly configured analyze.cfg file by replacing "%" with arguments
+	arg_tuple = (org, env[0], env[1])
 	with open("analyze-mutant-temp.cfg", "r") as sample_file, open("analyze-mutant-current.cfg", "w") as analyze_file:
 		i = 0
 		for line in sample_file:
 			if "%" in line:
-				analyze_file.write(line.replace("%", str(argv[i])))
+				analyze_file.write(line.replace("%", str(arg_tuple[i])))
 				i += 1
 			else:
 				analyze_file.write(line)
 	
 	# Run Avida in analyze mode
 	subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True)
+	subprocess.call("mv data/dat ../mutant-fitness/{}/env_nand_{}_not_{}/{}.dat".format(run_name, env[0], env[1], i), shell = True)
 
 def get_phenotype(run_name, environment, n):
-	with open("data/analysis/{:s}/env_nand_{:d}_not_{:d}/{:d}.dat".format(run_name, environment[0], environment[1], n), "r") as dat_file:
+	with open("../mutant-fitness/{}/env_nand_{}_not_{}/{}.dat".format(run_name, environment[0], environment[1], n), "r") as dat_file:
 		for i in range(12):
 			dat_file.readline()
 		dat_line = dat_file.readline().split()
 		fitness, length, seq, gestation, efficiency, pnand, pnot = dat_line
 		return fitness, pnand, pnot
-
-#def print_orgs(orgs_set, path):
-	#if not os.path.exists(path + "mutants"):
-		#os.makedirs(path + "mutants")
-	#for i, genome in enumerate(mutant_set):
-		#with open(path + "mutants/" + str(i) + ".gen", "w") as genome_file:
-			#for inst in genome:
-				#genome_file.write(inst)
-	## Count total mutants
-	#with open(path + "mutants-count.txt", "x") as mutants_file:
-		#mutants_file.write(str(len(mutant_set)))
 
 def generate_mutants(genome_str, instruction_set):
 	# Generate list of one-step mutant genomes
@@ -141,24 +121,25 @@ def generate_mutants(genome_str, instruction_set):
 
 	return mutant_dict
 	
-def dict_add(d, x):
-	if x in d:
-		d[x] += 1
-	else:
-		d[x] = 1
+def main(treatments_list, n_runs):
+	for treatment in treatments_list:
+		# Choose instruction set
+		if treatment == "Two-envs-sense":
+			instruction_set = instruction_set_sense
+		else:
+			instruction_set = instruction_set_basic
+		
+		for run in range(1, n_runs + 1):
+			# Get genome
+			filename = glob.glob("../analysis/{}_{}/env_nand_1_*/final_dominant.dat".format(treatment, run))[0] # dat file with string genome of final dominant
+			with open(filename, "r") as genome_file:
+				for i in range(16):
+					genome_file.readline()
+				genome_str = genome_file.readline().split()[4] # Genome as string of chars is 4th item on line.
+			
+			# Generate mutants and evaluate their phenotypes for each environment
+			mutant_dict = generate_mutants(genome_str, instruction_set)
+			evaluate_genomes(treatment, run, genome_str, mutant_dict, instruction_set)
 
-treatments_list = ["Static", "Two-envs", "Two-envs-sense"]
-n_runs = 10
-
-# For each test run
-for treatment in treatments_list:
-	# Choose instruction set
-	if treatment == "Two-envs-sense":
-		instruction_set = instruction_set_sense
-	else:
-		instruction_set = instruction_set_basic
-	
-	for run in range(1, n_runs + 1):
-		path = "../analysis/" + treatment + "_" + str(run) + "/final_dom/" # Path to directory for this treatment
-		count_mutants(path, treatment, run, instruction_set)
-
+# Run with three treatments and 10 runs of each
+main(["Static", "Two-envs", "Two-envs-sense"], 10)
