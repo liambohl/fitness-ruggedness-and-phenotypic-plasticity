@@ -121,7 +121,7 @@ def generate_mutants(genome_str, instruction_set):
 
 	return mutant_dict
 	
-def main(treatments_list, n_runs):
+def main(treatments_list, n_runs, tasks_list):
 	for treatment in treatments_list:
 		# Choose instruction set
 		if treatment == "Plastic":
@@ -141,5 +141,10 @@ def main(treatments_list, n_runs):
 			mutant_dict = generate_mutants(genome_str, instruction_set)
 			evaluate_genomes(treatment, run, genome_str, mutant_dict, instruction_set)
 
+# All 1- or 2-input binary logic operations
+all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
+
 # Run with three treatments and 10 runs of each
-main(["Static", "Changing", "Plastic"], 10)
+treatments_list = ["Static", "Changing", "Plastic"]
+tasks_list = all_tasks[:4]
+main(treatments_list, 10, tasks_list)
