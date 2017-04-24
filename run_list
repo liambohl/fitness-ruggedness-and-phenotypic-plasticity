@@ -13,7 +13,7 @@ set dest_dir /mnt/home/bohllia1/fitness-ruggedness/data
 1..10 Static ./avida -s $seed -set EVENT_FILE events-static.cfg -def INST_SET instset-heads.cfg
 
 #Two environments, no sensing
-1..10 Two-envs ./avida -s $seed -set EVENT_FILE events-two-environments.cfg -def INST_SET instset-heads.cfg
+11..20 Changing ./avida -s $seed -set EVENT_FILE events-four-environments.cfg -def INST_SET instset-heads.cfg
 
 #Two environments with sensing
-1..10 Two-envs-sense ./avida -s $seed -set EVENT_FILE events-two-environments.cfg -def INST_SET instset-heads-sense.cfg
+21..30 Plastic ./avida -s $seed -set EVENT_FILE events-four-environments.cfg -def INST_SET instset-heads-sense.cfg

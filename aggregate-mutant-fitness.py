@@ -9,9 +9,9 @@ import numpy
 
 # Each tuple of ints is an environment characterized by the value of NAND and NOT, respectively.
 static = ((1, 1),)
-two_envs = ((1, -1), (-1, 1))
+four_envs = ((1, 1), (1, -1), (-1, -1), (-1, 1))
 
-treatment_dict = {"Static": static, "Two-envs": two_envs, "Two-envs-sense": two_envs}
+treatment_dict = {"Static": static, "Changing": four_envs, "Plastic": four_envs}
 n_runs = 10
 
 def getPhenotypeFromDat(treatment, run, env, org):

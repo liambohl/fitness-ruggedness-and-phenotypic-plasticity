@@ -112,7 +112,7 @@ def generate_mutants(genome_str, instruction_set):
 		for inst in instruction_set:
 			if inst != genome_str[i]:
 				dict_add(mutant_dict, genome_str[:i] + inst + genome_str[i + 1:])	# Point
-			dict_add(mutant_dict, genome_str[:i] + genome_str[i + 1:])			# Deletion
+			dict_add(mutant_dict, genome_str[:i] + genome_str[i + 1:])				# Deletion
 			dict_add(mutant_dict, genome_str[:i] + inst + genome_str[i:])			# Insertion
 
 	# Handle insertions at end of genome
@@ -124,7 +124,7 @@ def generate_mutants(genome_str, instruction_set):
 def main(treatments_list, n_runs):
 	for treatment in treatments_list:
 		# Choose instruction set
-		if treatment == "Two-envs-sense":
+		if treatment == "Plastic":
 			instruction_set = instruction_set_sense
 		else:
 			instruction_set = instruction_set_basic
@@ -142,4 +142,4 @@ def main(treatments_list, n_runs):
 			evaluate_genomes(treatment, run, genome_str, mutant_dict, instruction_set)
 
 # Run with three treatments and 10 runs of each
-main(["Static", "Two-envs", "Two-envs-sense"], 10)
+main(["Static", "Changing", "Plastic"], 10)
