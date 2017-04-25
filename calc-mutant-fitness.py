@@ -11,12 +11,23 @@ instruction_set_basic = "abcdefghijklmnopqrstu"
 instruction_set_sense = "abcdefghijklmnopqrstuvw"
 
 def dict_add(d, x):
+	'''
+	Add x to dictionary d.
+	'''
 	if x in d:
 		d[x] += 1
 	else:
 		d[x] = 1
 
 def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set):
+	'''
+	Evaluate the phenotype of base organism and mutant dict. Output summary to summary.txt.
+	treatment: name of this treatment (string)
+	run: index of this replicate (int)
+	final_dom_gen: genome of base organism (string)
+	mutant_dict: all 1-step mutants of base organism (dict of strings)
+	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
+	'''
 	# Name of this run
 	run_name = treatment + "_" + str(run)
 	
@@ -41,8 +52,8 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 			analyze(instruction_set, i, org, run_name, env[0], env[1])
 			fitness, pnand, pnot = get_phenotype(run_name, env, i)
 			fitness_list.append(fitness)
-			nand_count += bool(int(pnand))
-			not_count += bool(int(pnot))
+			nand_count += pnand
+			not_count + pnot
 		
 		# Count number of beneficial, deleterious mutations
 		total_mutations = len(fitness_list)
@@ -75,6 +86,14 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 				summary_file.write("{:5d} ({:7.2%}) {:s}\n".format(stat[0], round(stat[0] / total_mutations, 4), stat[1]))
 
 def analyze(instruction_set, i, org, run_name, env):
+	'''
+	Run the given organism in the given environment in Avida analyze mode
+	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
+	i: index of this organism (int)
+	org: genome of this organism (string)
+	run_name: treatment and replicate number (string)
+	env: tuple of reaction values for each task (tuple of ints)
+	'''
 	# Set name of instruction set file
 	if instruction_set == instruction_set_basic:
 		inst_set = "instset-heads.cfg"
@@ -97,14 +116,29 @@ def analyze(instruction_set, i, org, run_name, env):
 	subprocess.call("mv data/dat ../mutant-fitness/{}/env_nand_{}_not_{}/{}.dat".format(run_name, env[0], env[1], i), shell = True)
 
 def get_phenotype(run_name, environment, n):
+	'''
+	Get important aspects of the phenotype of an organism from its dat file.
+	run_name: treatment and replicate number (string)
+	environment: tuple of reaction values for each task (tuple of ints)
+	returns:
+		fitness (float)
+		pnand (bool)
+		pnot (bool)
+	'''
 	with open("../mutant-fitness/{}/env_nand_{}_not_{}/{}.dat".format(run_name, environment[0], environment[1], n), "r") as dat_file:
 		for i in range(12):
 			dat_file.readline()
 		dat_line = dat_file.readline().split()
 		fitness, length, seq, gestation, efficiency, pnand, pnot = dat_line
-		return fitness, pnand, pnot
+		return float(fitness), bool(pnand), bool(pnot)
 
 def generate_mutants(genome_str, instruction_set):
+	'''
+	Generate all 1-step mutants of given genome, including point substitutions, deletions, and insertions.
+	genome_str: base organism for generating mutants (string with each instruction as one character)
+	instruction_set: set of characters used to represent instructions (string)
+	return: dict of mutants and counts (dict)
+	'''
 	# Generate list of one-step mutant genomes
 	mutant_dict = {}
 
@@ -122,6 +156,13 @@ def generate_mutants(genome_str, instruction_set):
 	return mutant_dict
 	
 def main(treatments_list, n_runs, tasks_list):
+	'''
+	Cycle through all replicates of all treatments to find final dominant org, generate all 1-step mutants from these orgs,
+	and calculate phenotypic match score for base org and mutants
+	treatments_list: names of experimental and control treatments (list of strings)
+	n_runs: number of replicates for each treatment (int)
+	tasks_list: names of tasks rewarded and punished (list of strings)
+	'''
 	for treatment in treatments_list:
 		# Choose instruction set
 		if treatment == "Plastic":
