@@ -6,6 +6,7 @@
 import glob
 import os
 import subprocess
+import numpy
 
 instruction_set_basic = "abcdefghijklmnopqrstu"
 instruction_set_sense = "abcdefghijklmnopqrstuvw"
@@ -37,62 +38,62 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 	else:
 		environments = ((1, -1), (-1, 1))
 	
-	for env in environments:
-		# Summary statistics for mutants of one final dominant in one environment
-		fitness_list = []	# List of all fitness values
-		nand_count = 0		# Number of orgs to perform nand
-		not_count = 0		# Number of orgs to perform not
+	# Get phenotypic match scores for base organism and all mutants.
+	max_score = len(environments * len(environments[0]))
+	base_score = score_org(instruction_set, -1, final_dom_gen, run_name, env)
+	score_list = []	# List of phenotypic match scores for mutants
+	for i, org in enumerate(mutant_dict):
+		score = score_org(instruction_set, i, org, run_name, env[0], env[1])
+		score_list.append(score)
+	
+	# Summary Stats
+	total_mutations = len(score_list)
+	mean_score = numpy.mean(score_list)
+	stdev_score = numpy.stdev(score_list)
+	
+	# Count number of beneficial, deleterious mutations
+	del_mutations, ben_mutations, neu_mutations = 0, 0, 0
+	for score in score_list:
+		if score > base_score:
+			ben_mutations += 1
+		elif score < base_score:
+			del_mutations += 1
+		else:
+			neu_mutations += 1
 		
-		# Get phenotype for base organism using -1 as index.
-		analyze(instruction_set, -1, final_dom_gen, run_name, env)
-		base_fitness, base_pnand, base_pnot = get_phenotype(run_name, env, -1)
+	# Output to file
+	out_filename = "../mutant-fitness/{}/summary.txt".format(run_name)
+	with open(out_filename, "w") as summary_file:
+		# Write base organism phenotype
+		summary_file.write("Max phenotypic match score: {:d}\n".format(max_score))
+		summary_file.write("Base organism phenotypic match score: {:d}\n\n".format(base_score))
 		
-		# Get phenotype for each mutant
-		for i, org in enumerate(mutant_dict):
-			analyze(instruction_set, i, org, run_name, env[0], env[1])
-			fitness, pnand, pnot = get_phenotype(run_name, env, i)
-			fitness_list.append(fitness)
-			nand_count += pnand
-			not_count + pnot
-		
-		# Count number of beneficial, deleterious mutations
-		total_mutations = len(fitness_list)
-		del_mutations, ben_mutations, neu_mutations = 0, 0, 0
-		for fitness in fitness_list:
-			if fitness > base_fitness:
-				ben_mutations += 1
-			elif fitness < base_fitness:
-				del_mutations += 1
-			else:
-				neu_mutations += 1
-		
-		# Output to file
-		out_filename = "../mutant-fitness/{}/env_nand_{}_not_{}/summary.txt".format(run_name, env[0], env[1])
-		with open(out_filename, "w") as summary_file:
-			# Write base organism phenotype
-			summary_file.write("Base organism performed NAND: {}; NOT: {}\n\n".format(base_pnand, base_pnot))
-			
-			# Write mutant summary stats
-			summary_file.write("Out of {} 1-step mutations:\n".format(total_mutations))
+		# Write mutant summary stats
+		summary_file.write("Out of {} 1-step mutations:\n".format(total_mutations))
 
-			stats_tuple = (
-				(del_mutations, "deleterious"),
-				(neu_mutations, "neutral"),
-				(ben_mutations, "beneficial"),
-				(nand_count, "performed NAND"),
-				(not_count, "performed NOT")
-			)
-			for stat in stats_tuple:
-				summary_file.write("{:5d} ({:7.2%}) {:s}\n".format(stat[0], round(stat[0] / total_mutations, 4), stat[1]))
+		stats_tuple = (
+			(del_mutations, "deleterious"),
+			(neu_mutations, "neutral"),
+			(ben_mutations, "beneficial"),
+		)
+		for stat in stats_tuple:
+			summary_file.write("{:5d} ({:7.2%}) {:s}\n".format(stat[0], round(stat[0] / total_mutations, 4), stat[1]))
+		summary_file.write("Mean score of 1-step mutants: {:.3f}\n".format(mean_score))
+		summary_file.write("Standard dev score of 1-step mutants: {:.3f}\n".format(stdev_score))
 
-def analyze(instruction_set, i, org, run_name, env):
+def score_org(instruction_set, i, org, run_name, environments):
 	'''
-	Run the given organism in the given environment in Avida analyze mode
+	Run the given organism in each environment in Avida analyze mode. Score the match between this organism's behavior and the set of environments.
 	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
 	i: index of this organism (int)
 	org: genome of this organism (string)
 	run_name: treatment and replicate number (string)
-	env: tuple of reaction values for each task (tuple of ints)
+	environments: tuple of environments; each environment is a tuple of reaction values for each task (tuple of tuples of ints)
+	returns: phenotypic match score - sum over all environments:
+		+1 for tasks performed and rewarded
+		+1 for tasks not performed and punished
+		-1 for tasks performed and punished
+		-1 for tasks not performed and rewarded
 	'''
 	# Set name of instruction set file
 	if instruction_set == instruction_set_basic:
@@ -100,37 +101,35 @@ def analyze(instruction_set, i, org, run_name, env):
 	else:
 		inst_set = "instset-heads-sense.cfg"
 	
-	# Generate properly configured analyze.cfg file by replacing "%" with arguments
-	arg_tuple = (org, env[0], env[1])
-	with open("analyze-mutant-temp.cfg", "r") as sample_file, open("analyze-mutant-current.cfg", "w") as analyze_file:
-		i = 0
-		for line in sample_file:
-			if "%" in line:
-				analyze_file.write(line.replace("%", str(arg_tuple[i])))
-				i += 1
-			else:
-				analyze_file.write(line)
-	
-	# Run Avida in analyze mode
-	subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True)
-	subprocess.call("mv data/dat ../mutant-fitness/{}/env_nand_{}_not_{}/{}.dat".format(run_name, env[0], env[1], i), shell = True)
-
-def get_phenotype(run_name, environment, n):
-	'''
-	Get important aspects of the phenotype of an organism from its dat file.
-	run_name: treatment and replicate number (string)
-	environment: tuple of reaction values for each task (tuple of ints)
-	returns:
-		fitness (float)
-		pnand (bool)
-		pnot (bool)
-	'''
-	with open("../mutant-fitness/{}/env_nand_{}_not_{}/{}.dat".format(run_name, environment[0], environment[1], n), "r") as dat_file:
-		for i in range(12):
-			dat_file.readline()
-		dat_line = dat_file.readline().split()
-		fitness, length, seq, gestation, efficiency, pnand, pnot = dat_line
-		return float(fitness), bool(pnand), bool(pnot)
+	p_match_score = 0
+	for env in environments:
+		# Generate properly configured analyze.cfg file by replacing "%" with arguments
+		arg_tuple = (org, env[0], env[1])
+		with open("analyze-mutant-temp.cfg", "r") as sample_file, open("analyze-mutant-current.cfg", "w") as analyze_file:
+			i = 0
+			for line in sample_file:
+				if "%" in line:
+					analyze_file.write(line.replace("%", str(arg_tuple[i])))
+					i += 1
+				else:
+					analyze_file.write(line)
+		
+		# Run Avida in analyze mode
+		subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True)
+		
+		# Score phenotypic match in this environment
+		with open("data/dat", "r") as dat_file:
+			for i in range():
+				dat_file.readline()
+			dat_line = dat_file.readline().split()
+			fitness, length, seq, gestation, efficiency, pnand, pnot = dat_line
+			phenotype = tuple([-1 if i == "0" else 1 for i in (pnand, pnot)]) # 1 for tasks performed; -1 for tasks not performed
+			for task, performed in enumerate(phenotype):
+				if performed == env[task]: # "task x was performed" equals "task x was rewarded"
+					p_match_score += 1
+				else:
+					p_match_score -= 1 # This is redundant, but keeps the range of possible scores centered at 0.
+	return p_match_score
 
 def generate_mutants(genome_str, instruction_set):
 	'''
