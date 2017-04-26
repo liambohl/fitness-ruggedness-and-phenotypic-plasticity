@@ -1,6 +1,9 @@
 ###############################################################################
-# Generate counts of beneficial, deleterious, and neutral one-step mutations
-# from final dominant genomes of each test run.
+# Iterate over all treatments and all replicates to find the 1-step mutants
+# of the final dominant genotype. Evaluate the phenotypic match score of the
+# final dominant genotypes and mutants across all environments they would
+# encounter.
+# Summarize mean and standard deviation of these scores for each replicate.
 ###############################################################################
 
 import glob
@@ -79,7 +82,11 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 		for stat in stats_tuple:
 			summary_file.write("{:5d} ({:7.2%}) {:s}\n".format(stat[0], round(stat[0] / total_mutations, 4), stat[1]))
 		summary_file.write("Mean score of 1-step mutants: {:.3f}\n".format(mean_score))
-		summary_file.write("Standard dev score of 1-step mutants: {:.3f}\n".format(stdev_score))
+		summary_file.write("Standard dev score of 1-step mutants: {:.3f}\n\n".format(stdev_score))
+		
+		# Write all match scores
+		score_lines = '\n'.join([str(score) for score in score_list])
+		summary_file.write(score_lines)
 
 def score_org(instruction_set, i, org, run_name, environments):
 	'''
