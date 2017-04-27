@@ -34,7 +34,6 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 	'''
 	# Name of this run
 	run_name = treatment + "_" + str(run)
-	print("Run Name: {}".format(run_name))
 	
 	# Find value of nand and not for each treatment
 	if treatment == "Static":
@@ -162,14 +161,14 @@ def generate_mutants(genome_str, instruction_set):
 
 	return mutant_dict
 	
-def main(treatments_dict, n_runs, tasks_list):
+def main(treatments_list, n_runs, tasks_list):
 	'''
 	Cycle through all replicates of all treatments to find final dominant org, generate all 1-step mutants from these orgs,
 	and calculate phenotypic match score for base org and mutants
-	treatments_dict: names of experimental and control treatments (list of strings)
+	treatments_list: names of experimental and control treatments (list of strings)
 	tasks_list: names of tasks rewarded and punished (list of strings)
 	'''
-	for start, treatment in enumerate(treatments_dict):
+	for start, treatment in enumerate(treatments_list):
 		# Choose instruction set
 		if treatment == "Plastic":
 			instruction_set = instruction_set_sense
@@ -177,7 +176,6 @@ def main(treatments_dict, n_runs, tasks_list):
 			instruction_set = instruction_set_basic
 		
 		for run in range(100 * start, 100 * start + n_runs):
-			print("Treatment: {}\nRun: {}".format(treatment, run))
 			# Get genome
 			filename = "../analysis/{}_{}/final_dom.dat".format(treatment, run)
 			with open(filename, "r") as genome_file:
@@ -193,7 +191,7 @@ def main(treatments_dict, n_runs, tasks_list):
 all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
 
 # Run with three treatments and 10 runs of each
-treatments_dict = ["Static", "Changing", "Plastic"]
+treatments_list = ["Static", "Changing", "Plastic"]
 n_runs = 10
 tasks_list = all_tasks[:2]
 main(treatments_dict, n_runs, tasks_list)
