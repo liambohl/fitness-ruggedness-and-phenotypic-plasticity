@@ -1,5 +1,5 @@
 #!/bin/bash -login
-#PBS -l walltime=5:00:00,mem=1gb
+#PBS -l walltime=10:00:00,mem=1gb
 #PBS -N mutant_fitness
 
 cd /mnt/home/bohllia1/plastic-landscapes/config

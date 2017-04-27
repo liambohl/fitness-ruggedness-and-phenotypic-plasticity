@@ -52,7 +52,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 	# Summary Stats
 	total_mutations = len(score_list)
 	mean_score = numpy.mean(score_list)
-	stdev_score = numpy.stdev(score_list)
+	stdev_score = numpy.std(score_list)
 	
 	# Count number of beneficial, deleterious mutations
 	del_mutations, ben_mutations, neu_mutations = 0, 0, 0
