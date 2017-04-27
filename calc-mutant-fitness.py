@@ -43,10 +43,10 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 	
 	# Get phenotypic match scores for base organism and all mutants.
 	max_score = len(environments * len(environments[0]))
-	base_score = score_org(instruction_set, -1, final_dom_gen, run_name, env)
+	base_score = score_org(instruction_set, -1, final_dom_gen, run_name, environments)
 	score_list = []	# List of phenotypic match scores for mutants
 	for i, org in enumerate(mutant_dict):
-		score = score_org(instruction_set, i, org, run_name, env[0], env[1])
+		score = score_org(instruction_set, i, org, run_name, environments)
 		score_list.append(score)
 	
 	# Summary Stats
@@ -126,10 +126,10 @@ def score_org(instruction_set, i, org, run_name, environments):
 		
 		# Score phenotypic match in this environment
 		with open("data/dat", "r") as dat_file:
-			for i in range():
+			for i in range(7):
 				dat_file.readline()
 			dat_line = dat_file.readline().split()
-			fitness, length, seq, gestation, efficiency, pnand, pnot = dat_line
+			pnand, pnot = dat_line
 			phenotype = tuple([-1 if i == "0" else 1 for i in (pnand, pnot)]) # 1 for tasks performed; -1 for tasks not performed
 			for task, performed in enumerate(phenotype):
 				if performed == env[task]: # "task x was performed" equals "task x was rewarded"
@@ -178,11 +178,11 @@ def main(treatments_list, n_runs, tasks_list):
 		
 		for run in range(1, n_runs + 1):
 			# Get genome
-			filename = glob.glob("../analysis/{}_{}/env_nand_1_*/final_dominant.dat".format(treatment, run))[0] # dat file with string genome of final dominant
+			filename = "../analysis/{}_{}/final_dom.dat".format(treatment, run)
 			with open(filename, "r") as genome_file:
-				for i in range(16):
+				for i in range(6):
 					genome_file.readline()
-				genome_str = genome_file.readline().split()[4] # Genome as string of chars is 4th item on line.
+				genome_str = genome_file.readline()
 			
 			# Generate mutants and evaluate their phenotypes for each environment
 			mutant_dict = generate_mutants(genome_str, instruction_set)
