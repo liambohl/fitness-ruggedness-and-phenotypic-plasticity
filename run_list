@@ -10,10 +10,10 @@ set beacon_priority y
 set dest_dir /mnt/home/bohllia1/plastic-landscapes/data
 
 #Static environment
-1..10 Static ./avida -s $seed -set EVENT_FILE events-static.cfg -def INST_SET instset-heads.cfg
+0..9 Static ./avida -s $seed -set EVENT_FILE events-static.cfg -def INST_SET instset-heads.cfg
 
 #Changing environment, no sensing
-11..20 Changing ./avida -s $seed -set EVENT_FILE events-four-environments.cfg -def INST_SET instset-heads.cfg
+100..109 Changing ./avida -s $seed -set EVENT_FILE events-four-environments.cfg -def INST_SET instset-heads.cfg
 
 #Changing environment with sensing
-21..30 Plastic ./avida -s $seed -set EVENT_FILE events-four-environments.cfg -def INST_SET instset-heads-sense.cfg
+200..209 Plastic ./avida -s $seed -set EVENT_FILE events-four-environments.cfg -def INST_SET instset-heads-sense.cfg
