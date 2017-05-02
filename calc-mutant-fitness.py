@@ -11,25 +11,16 @@ import os
 import subprocess
 import numpy
 
-instruction_set_basic = "abcdefghijklmnopqrstu"
-instruction_set_sense = "abcdefghijklmnopqrstuvw"
+instruction_set_basic = "abcdefghijklmnopqrstuvwxyz"
+instruction_set_sense = "abcdefghijklmnopqrstuvwxyzAB"
 
-def dict_add(d, x):
+def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set):
 	'''
-	Add x to dictionary d.
-	'''
-	if x in d:
-		d[x] += 1
-	else:
-		d[x] = 1
-
-def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set):
-	'''
-	Evaluate the phenotype of base organism and mutant dict. Output summary to summary.txt.
+	Evaluate the phenotype of base organism and mutant list. Output summary to summary.txt.
 	treatment: name of this treatment (string)
 	run: index of this replicate (int)
 	final_dom_gen: genome of base organism (string)
-	mutant_dict: all 1-step mutants of base organism (dict of strings)
+	mutant_list: all 1-step mutants of base organism (list of strings)
 	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
 	'''
 	# Name of this run
@@ -45,7 +36,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 	max_score = len(environments * len(environments[0]))
 	base_score = score_org(instruction_set, -1, final_dom_gen, run_name, environments)
 	score_list = []	# List of phenotypic match scores for mutants
-	for i, org in enumerate(mutant_dict):
+	for i, org in enumerate(mutant_list):
 		score = score_org(instruction_set, i, org, run_name, environments)
 		score_list.append(score)
 	
@@ -88,7 +79,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_dict, instruction_set
 		score_lines = '\n'.join([str(score) for score in score_list])
 		summary_file.write(score_lines)
 
-def score_org(instruction_set, i, org, run_name, environments):
+def score_org(instruction_set, org, gen, run_name, environments):
 	'''
 	Run the given organism in each environment in Avida analyze mode. Score the match between this organism's behavior and the set of environments.
 	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
@@ -111,7 +102,7 @@ def score_org(instruction_set, i, org, run_name, environments):
 	p_match_score = 0
 	for env in environments:
 		# Generate properly configured analyze.cfg file by replacing "%" with arguments
-		arg_tuple = (org, env[0], env[1])
+		arg_tuple = (gen, env[0], env[1])
 		with open("analyze-mutant-temp.cfg", "r") as sample_file, open("analyze-mutant-current.cfg", "w") as analyze_file:
 			i = 0
 			for line in sample_file:
@@ -122,13 +113,18 @@ def score_org(instruction_set, i, org, run_name, environments):
 					analyze_file.write(line)
 		
 		# Run Avida in analyze mode
-		subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True)
+		print("Return code for {}/{}_{}/{}: ".format(run_name, env[0], env[1], org))
+		print(subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True))
+		
+		# Save analyze.cfg and dat files
+		subprocess.call("cp analyze-mutant-current.cfg ../scoring/{}/{}_{}/{}.cfg".format(run_name, env[0], env[1], org), shell = True)
+		subprocess.call("cp data/dat ../scoring/{}/{}_{}/{}.dat".format(run_name, env[0], env[1], org), shell = True)
 		
 		# Score phenotypic match in this environment
 		with open("data/dat", "r") as dat_file:
-			for i in range(7):
+			for i in range(8):
 				dat_file.readline()
-			dat_line = dat_file.readline().split()
+			dat_line = dat_file.readline().split()[-2:]
 			pnand, pnot = dat_line
 			phenotype = tuple([-1 if i == "0" else 1 for i in (pnand, pnot)]) # 1 for tasks performed; -1 for tasks not performed
 			for task, performed in enumerate(phenotype):
@@ -143,23 +139,23 @@ def generate_mutants(genome_str, instruction_set):
 	Generate all 1-step mutants of given genome, including point substitutions, deletions, and insertions.
 	genome_str: base organism for generating mutants (string with each instruction as one character)
 	instruction_set: set of characters used to represent instructions (string)
-	return: dict of mutants and counts (dict)
+	return: list of mutants (list)
 	'''
 	# Generate list of one-step mutant genomes
-	mutant_dict = {}
+	mutant_list = []
 
 	for i in range(len(genome_str)):
 		for inst in instruction_set:
 			if inst != genome_str[i]:
-				dict_add(mutant_dict, genome_str[:i] + inst + genome_str[i + 1:])	# Point
-			dict_add(mutant_dict, genome_str[:i] + genome_str[i + 1:])				# Deletion
-			dict_add(mutant_dict, genome_str[:i] + inst + genome_str[i:])			# Insertion
+				mutant_list.append(genome_str[:i] + inst + genome_str[i + 1:])	# Point
+			mutant_list.append(genome_str[:i] + inst + genome_str[i:])			# Insertion
+		mutant_list.append(genome_str[:i] + genome_str[i + 1:])					# Deletion
 
 	# Handle insertions at end of genome
 	for inst in instruction_set:
-		dict_add(mutant_dict, genome_str + inst)
+		mutant_list.append(genome_str + inst)
 
-	return mutant_dict
+	return mutant_list
 	
 def main(treatments_list, n_runs, tasks_list):
 	'''
@@ -181,11 +177,22 @@ def main(treatments_list, n_runs, tasks_list):
 			with open(filename, "r") as genome_file:
 				for i in range(6):
 					genome_file.readline()
-				genome_str = genome_file.readline()
+				genome_str = genome_file.readline().strip()
+			
+			# Save base genome
+			base_filename = "../mutant-fitness/{}_{}/base-genome".format(treatment, run)
+			with open(base_filename, "w") as genome_file:
+				genome_file.write(genome_str)
 			
 			# Generate mutants and evaluate their phenotypes for each environment
-			mutant_dict = generate_mutants(genome_str, instruction_set)
-			evaluate_genomes(treatment, run, genome_str, mutant_dict, instruction_set)
+			mutant_list = generate_mutants(genome_str, instruction_set)
+			
+			# Output all mutant genomes to file
+			mutant_filename = "../mutant-fitness/{}_{}/mutant-genomes".format(treatment, run)
+			with open(mutant_filename, "w") as mutant_file:
+				for i, gen in enumerate(mutant_list):
+					mutant_file.write("{:6d}: {}\n".format(i, gen))
+			evaluate_genomes(treatment, run, genome_str, mutant_list, instruction_set)
 
 # All 1- or 2-input binary logic operations
 all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
@@ -194,4 +201,4 @@ all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
 treatments_list = ["Static", "Changing", "Plastic"]
 n_runs = 10
 tasks_list = all_tasks[:2]
-main(treatments_dict, n_runs, tasks_list)
+main(treatments_list, n_runs, tasks_list)
