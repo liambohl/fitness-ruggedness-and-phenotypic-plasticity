@@ -30,7 +30,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 	if treatment == "Static":
 		environments = ((1, 1),)
 	else:
-		environments = ((1, -1), (-1, 1))
+		environments = ((1, 1) ,(1, -1), (-1, 1), (-1, -1))
 	
 	# Get phenotypic match scores for base organism and all mutants.
 	max_score = len(environments * len(environments[0]))
