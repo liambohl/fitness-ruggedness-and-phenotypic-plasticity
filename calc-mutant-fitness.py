@@ -6,10 +6,10 @@
 # Summarize mean and standard deviation of these scores for each replicate.
 ###############################################################################
 
-import glob
 import os
 import subprocess
 import numpy
+import multiprocessing
 
 instruction_set_basic = "abcdefghijklmnopqrstuvwxyz"
 instruction_set_sense = "abcdefghijklmnopqrstuvwxyzAB"
@@ -117,8 +117,8 @@ def score_org(instruction_set, org, gen, run_name, environments):
 		print(subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True))
 		
 		# Save analyze.cfg and dat files
-		subprocess.call("cp analyze-mutant-current.cfg ../scoring/{}/{}_{}/{}.cfg".format(run_name, env[0], env[1], org), shell = True)
-		subprocess.call("cp data/dat ../scoring/{}/{}_{}/{}.dat".format(run_name, env[0], env[1], org), shell = True)
+		# subprocess.call("cp analyze-mutant-current.cfg ../scoring/{}/{}_{}/{}.cfg".format(run_name, env[0], env[1], org), shell = True)
+		# subprocess.call("cp data/dat ../scoring/{}/{}_{}/{}.dat".format(run_name, env[0], env[1], org), shell = True)
 		
 		# Score phenotypic match in this environment
 		with open("data/dat", "r") as dat_file:
@@ -164,6 +164,10 @@ def main(treatments_list, n_runs, tasks_list):
 	treatments_list: names of experimental and control treatments (list of strings)
 	tasks_list: names of tasks rewarded and punished (list of strings)
 	'''
+	
+	# One process to evaluate base + mutant genotypes of each run
+	process_list = []
+		
 	for start, treatment in enumerate(treatments_list):
 		# Choose instruction set
 		if treatment == "Plastic":
@@ -191,8 +195,15 @@ def main(treatments_list, n_runs, tasks_list):
 			mutant_filename = "../mutant-fitness/{}_{}/mutant-genomes".format(treatment, run)
 			with open(mutant_filename, "w") as mutant_file:
 				for i, gen in enumerate(mutant_list):
-					mutant_file.write("{:6d}: {}\n".format(i, gen))
-			evaluate_genomes(treatment, run, genome_str, mutant_list, instruction_set)
+					mutant_file.write("{}\n".format(gen))
+			
+			# Begin processing
+			process_list.append(subprocess.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, instruction_set)))
+			process_list[-1].start()
+	
+	# Finish processing
+	for process in process_list:
+		process.join()
 
 # All 1- or 2-input binary logic operations
 all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
