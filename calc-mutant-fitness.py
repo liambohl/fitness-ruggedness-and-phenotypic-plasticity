@@ -14,6 +14,18 @@ import multiprocessing
 instruction_set_basic = "abcdefghijklmnopqrstuvwxyz"
 instruction_set_sense = "abcdefghijklmnopqrstuvwxyzAB"
 
+def skip_legend(f):
+	'''
+	move to first line of real data in file f.
+	'''
+	legend = False
+	while True:
+		line = f.readline()
+		if line[:2] == "# ":
+			legend = True
+		if line == "\n" and legend == True:
+			return
+
 def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set):
 	'''
 	Evaluate the phenotype of base organism and mutant list. Output summary to summary.txt.
@@ -34,11 +46,8 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 	
 	# Get phenotypic match scores for base organism and all mutants.
 	max_score = len(environments * len(environments[0]))
-	base_score = score_org(instruction_set, -1, final_dom_gen, run_name, environments)
-	score_list = []	# List of phenotypic match scores for mutants
-	for i, org in enumerate(mutant_list):
-		score = score_org(instruction_set, i, org, run_name, environments)
-		score_list.append(score)
+	base_score = score_orgs(instruction_set, run_name, environments, 0)[0]
+	score_list = score_orgs(instruction_set, run_name, environments, 1)
 	
 	# Summary Stats
 	total_mutations = len(score_list)
@@ -79,7 +88,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 		score_lines = '\n'.join([str(score) for score in score_list])
 		summary_file.write(score_lines)
 
-def score_org(instruction_set, org, gen, run_name, environments):
+def score_orgs(instruction_set, run_name, environments, step):
 	'''
 	Run the given organism in each environment in Avida analyze mode. Score the match between this organism's behavior and the set of environments.
 	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
@@ -99,11 +108,23 @@ def score_org(instruction_set, org, gen, run_name, environments):
 	else:
 		inst_set = "instset-heads-sense.cfg"
 	
-	p_match_score = 0
+	# Initialize list of phenotypic match scores
+	mutant_genomes_filename = "../mutant-fitness/{}/gen-step-{}.spop".format(run_name, step)
+	with open(mutant_genomes_filename, "r") as genomes:
+		skip_legend(genomes)
+		n_genomes = 0
+		for line in genomes:
+			n_genomes += 1
+	p_match_list = [0 for i in range(n_genomes)]
+
 	for env in environments:
 		# Generate properly configured analyze.cfg file by replacing "%" with arguments
-		arg_tuple = (gen, env[0], env[1])
-		with open("analyze-mutant-temp.cfg", "r") as sample_file, open("analyze-mutant-current.cfg", "w") as analyze_file:
+		output_filename = "{}/step-{}_{}_{}.dat".format(run_name, step, env[0], env[1])
+		arg_tuple = (mutant_genomes_filename, output_filename, env[0], env[1])
+
+		sample_filename = "analyze-mutant-temp.cfg"
+		analyze_filename = "analyze-mutant-{}-step-{}_{}_{}.cfg".format(run_name, step, env[0], env[1])
+		with open(sample_filename, "r") as sample_file, open(analyze_filename, "w") as analyze_file:
 			i = 0
 			for line in sample_file:
 				if "%" in line:
@@ -113,26 +134,24 @@ def score_org(instruction_set, org, gen, run_name, environments):
 					analyze_file.write(line)
 		
 		# Run Avida in analyze mode
-		print("Return code for {}/{}_{}/{}: ".format(run_name, env[0], env[1], org))
-		print(subprocess.call("./avida -a -set ANALYZE_FILE analyze-mutant-current.cfg -def INST_SET " + inst_set + " -set EVENT_FILE events-static.cfg -set VERBOSITY 0", shell = True))
-		
-		# Save analyze.cfg and dat files
-		# subprocess.call("cp analyze-mutant-current.cfg ../scoring/{}/{}_{}/{}.cfg".format(run_name, env[0], env[1], org), shell = True)
-		# subprocess.call("cp data/dat ../scoring/{}/{}_{}/{}.dat".format(run_name, env[0], env[1], org), shell = True)
+		subprocess.call("./avida -a -set ANALYZE_FILE {} -def INST_SET {} -set EVENT_FILE events-static.cfg -set VERBOSITY 0".format(analyze_filename, inst_set), shell = True)
 		
 		# Score phenotypic match in this environment
-		with open("data/dat", "r") as dat_file:
-			for i in range(8):
-				dat_file.readline()
-			dat_line = dat_file.readline().split()[-2:]
-			pnand, pnot = dat_line
-			phenotype = tuple([-1 if i == "0" else 1 for i in (pnand, pnot)]) # 1 for tasks performed; -1 for tasks not performed
-			for task, performed in enumerate(phenotype):
-				if performed == env[task]: # "task x was performed" equals "task x was rewarded"
-					p_match_score += 1
-				else:
-					p_match_score -= 1 # This is redundant, but keeps the range of possible scores centered at 0.
-	return p_match_score
+		with open("data/{}".format(output_filename), "r") as dat_file:
+			skip_legend(dat_file)
+			for i, line in enumerate(dat_file):
+				pnand, pnot = line.split()[-2:]
+				phenotype = tuple([-1 if i == "0" else 1 for i in (pnand, pnot)]) # 1 for tasks performed; -1 for tasks not performed
+				for task, performed in enumerate(phenotype):
+					if performed == env[task]: # "task x was performed" equals "task x was rewarded"
+						p_match_list[i] += 1
+					else:
+						p_match_list[i] -= 1 # This is redundant, but keeps the range of possible scores centered at 0.
+
+		# Move analyze.cfg
+		subprocess.call("mv {} analyze".format(analyze_filename, run_name, env[0], env[1]), shell = True)
+
+	return p_match_list
 
 def generate_mutants(genome_str, instruction_set):
 	'''
@@ -184,21 +203,23 @@ def main(treatments_list, n_runs, tasks_list):
 				genome_str = genome_file.readline().strip()
 			
 			# Save base genome
-			base_filename = "../mutant-fitness/{}_{}/base-genome".format(treatment, run)
+			base_filename = "../mutant-fitness/{}_{}/gen-step-0.spop".format(treatment, run)
 			with open(base_filename, "w") as genome_file:
+				genome_file.write("#filetype genotype_data\n#format sequence\n# 1: Genome Sequence\n\n") # Formatting info for Avida parser
 				genome_file.write(genome_str)
 			
 			# Generate mutants and evaluate their phenotypes for each environment
 			mutant_list = generate_mutants(genome_str, instruction_set)
 			
 			# Output all mutant genomes to file
-			mutant_filename = "../mutant-fitness/{}_{}/mutant-genomes".format(treatment, run)
+			mutant_filename = "../mutant-fitness/{}_{}/gen-step-1.spop".format(treatment, run)
 			with open(mutant_filename, "w") as mutant_file:
+				mutant_file.write("#filetype genotype_data\n#format sequence\n# 1: Genome Sequence\n\n") # Formatting info for Avida parser
 				for i, gen in enumerate(mutant_list):
 					mutant_file.write("{}\n".format(gen))
 			
 			# Begin processing
-			process_list.append(subprocess.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, instruction_set)))
+			process_list.append(multiprocessing.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, instruction_set)))
 			process_list[-1].start()
 	
 	# Finish processing
