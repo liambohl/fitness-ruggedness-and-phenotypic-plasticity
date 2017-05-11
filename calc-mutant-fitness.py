@@ -11,8 +11,7 @@ import subprocess
 import numpy
 import multiprocessing
 
-instruction_set_basic = "abcdefghijklmnopqrstuvwxyz"
-instruction_set_sense = "abcdefghijklmnopqrstuvwxyzAB"
+instruction_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHI"
 
 def skip_legend(f):
 	'''
@@ -50,14 +49,14 @@ def permute_environments(tasks_remaining, environments = None):
 	else:
 		return new_environments
 
-def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set, tasks_list):
+def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, sensing, tasks_list):
 	'''
 	Evaluate the phenotype of base organism and mutant list. Output summary to summary.txt.
 	treatment: name of this treatment (string)
 	run: index of this replicate (int)
 	final_dom_gen: genome of base organism (string)
 	mutant_list: all 1-step mutants of base organism (list of strings)
-	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
+	sensing: True iff organisms evolved with sensing. Used to determine which instruction set file to specify in Avida options. (bool)
 	tasks_list: which tasks are rewarded, punished, and measured (list of ints)
 	'''
 	# Name of this run
@@ -72,8 +71,8 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 	# Get phenotypic match scores for base organism and all mutants.
 	n_tasks = tasks_list.count(1)
 	max_score = n_tasks * 2 ** n_tasks # Number of measured tasks x number of environments
-	base_score = score_orgs(instruction_set, run_name, environments, 0)[0]
-	score_list = score_orgs(instruction_set, run_name, environments, 1)
+	base_score = score_orgs(sensing, run_name, environments, 0)[0]
+	score_list = score_orgs(sensing, run_name, environments, 1)
 	
 	# Summary Stats
 	total_mutations = len(score_list)
@@ -114,10 +113,10 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 		score_lines = '\n'.join([str(score) for score in score_list])
 		summary_file.write(score_lines)
 
-def score_orgs(instruction_set, run_name, environments, step):
+def score_orgs(sensing, run_name, environments, step):
 	'''
 	Run the given organism in each environment in Avida analyze mode. Score the match between this organism's behavior and the set of environments.
-	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
+	sensing: True iff organisms evolved with sensing. Used to determine which instruction set file to specify in Avida options. (bool)
 	i: index of this organism (int)
 	org: genome of this organism (string)
 	run_name: treatment and replicate number (string)
@@ -129,7 +128,7 @@ def score_orgs(instruction_set, run_name, environments, step):
 		-1 for tasks not performed and rewarded
 	'''
 	# Set name of instruction set file
-	if instruction_set == instruction_set_basic:
+	if sensing:
 		inst_set = "instset-heads.cfg"
 	else:
 		inst_set = "instset-heads-sense.cfg"
@@ -222,11 +221,8 @@ def main(treatments_list, n_runs, tasks_list):
 	process_list = []
 		
 	for start, treatment in enumerate(treatments_list):
-		# Choose instruction set
-		if treatment == "Plastic":
-			instruction_set = instruction_set_sense
-		else:
-			instruction_set = instruction_set_basic
+		# Decide whether to use sensing instruction set
+		sensing = (treatment == "Plastic")
 		
 		for run in range(100 * start, 100 * start + n_runs):
 			# Get genome
@@ -242,7 +238,7 @@ def main(treatments_list, n_runs, tasks_list):
 				genome_file.write(genome_str)
 			
 			# Generate mutants and evaluate their phenotypes for each environment
-			mutant_list = generate_mutants(genome_str, instruction_set)
+			mutant_list = generate_mutants(genome_str, instruction_alphabet)
 			
 			# Output all mutant genomes to file
 			mutant_filename = "../mutant-fitness/{}_{}/gen-step-1.spop".format(treatment, run)
@@ -252,7 +248,7 @@ def main(treatments_list, n_runs, tasks_list):
 					mutant_file.write("{}\n".format(gen))
 			
 			# Begin processing
-			process_list.append(multiprocessing.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, instruction_set, tasks_list)))
+			process_list.append(multiprocessing.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, sensing, tasks_list)))
 			process_list[-1].start()
 	
 	# Finish processing
@@ -265,5 +261,5 @@ all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
 # Run with three treatments and 10 runs of each
 treatments_list = ["Static", "Changing", "Plastic"]
 n_runs = 10
-tasks_list = [1, 1, 1, 1, 0, 0, 0, 0, 0] # Tasks that are included
+tasks_list = [1, 1, 0, 0, 0, 0, 0, 0, 0] # Tasks that are included
 main(treatments_list, n_runs, tasks_list)

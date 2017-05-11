@@ -1,6 +1,6 @@
-avida
-analysis.qsub
-makedirs.py
+*.qsub
+make*.py
+*test*
 analyze-mutant-current.cfg
 data
 analyze
