@@ -26,7 +26,31 @@ def skip_legend(f):
 		if line == "\n" and legend == True:
 			return
 
-def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set):
+def permute_environments(tasks_remaining, environments = None):
+	'''
+	Expand the given list of environments to include all possibilities of next task.
+	environments: all permutations of values for previous tasks (list of tuples)
+	tasks_remaining: which tasks are measured in this experiment (list of ints)
+	returns: expanded list of environments
+	'''
+	if environments == None:
+		environments = [[]]
+	# Expand list by one task
+	if tasks_remaining[0] == 0: # Next task is not measured
+		new_environments = [env + [0] for env in environments]
+	else:
+		new_environments = []
+		for env in environments:
+			new_environments.append(env + [1])
+			new_environments.append(env + [-1])
+
+	# Call next step and return
+	if len(tasks_remaining) > 1:
+		return permute_environments(tasks_remaining[1:], new_environments)
+	else:
+		return new_environments
+
+def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set, tasks_list):
 	'''
 	Evaluate the phenotype of base organism and mutant list. Output summary to summary.txt.
 	treatment: name of this treatment (string)
@@ -34,18 +58,20 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 	final_dom_gen: genome of base organism (string)
 	mutant_list: all 1-step mutants of base organism (list of strings)
 	instruction_set: name of instruction set. Used to determine which instruction set file to specify in Avida options. (string)
+	tasks_list: which tasks are rewarded, punished, and measured (list of ints)
 	'''
 	# Name of this run
 	run_name = treatment + "_" + str(run)
 	
-	# Find value of nand and not for each treatment
+	# Find value of each task for each treatment
 	if treatment == "Static":
-		environments = ((1, 1),)
+		environments = (tasks_list,)
 	else:
-		environments = ((1, 1) ,(1, -1), (-1, 1), (-1, -1))
+		environments = permute_environments(tasks_list)
 	
 	# Get phenotypic match scores for base organism and all mutants.
-	max_score = len(environments * len(environments[0]))
+	n_tasks = tasks_list.count(1)
+	max_score = n_tasks * 2 ^ n_tasks # Number of measured tasks x number of environments
 	base_score = score_orgs(instruction_set, run_name, environments, 0)[0]
 	score_list = score_orgs(instruction_set, run_name, environments, 1)
 	
@@ -118,12 +144,22 @@ def score_orgs(instruction_set, run_name, environments, step):
 	p_match_list = [0 for i in range(n_genomes)]
 
 	for env in environments:
+		# Generate string to describe this environment
+		env_str = ""
+		for task in env:
+			if task < 0:
+				env_str += "-"
+			elif task > 0:
+				env_str += "+"
+			else:
+				env_str += "0"
+		
 		# Generate properly configured analyze.cfg file by replacing "%" with arguments
-		output_filename = "{}/step-{}_{}_{}.dat".format(run_name, step, env[0], env[1])
-		arg_tuple = (mutant_genomes_filename, output_filename, env[0], env[1])
+		output_filename = "{}/data/step-{}{}.dat".format(run_name, step, env_str)
+		arg_tuple = (mutant_genomes_filename, output_filename) + tuple(env)
 
 		sample_filename = "analyze-mutant-temp.cfg"
-		analyze_filename = "analyze-mutant-{}-step-{}_{}_{}.cfg".format(run_name, step, env[0], env[1])
+		analyze_filename = "data/{}/analyze/step-{}{}.cfg".format(run_name, step, env_str)
 		with open(sample_filename, "r") as sample_file, open(analyze_filename, "w") as analyze_file:
 			i = 0
 			for line in sample_file:
@@ -140,16 +176,14 @@ def score_orgs(instruction_set, run_name, environments, step):
 		with open("data/{}".format(output_filename), "r") as dat_file:
 			skip_legend(dat_file)
 			for i, line in enumerate(dat_file):
-				pnand, pnot = line.split()[-2:]
-				phenotype = tuple([-1 if i == "0" else 1 for i in (pnand, pnot)]) # 1 for tasks performed; -1 for tasks not performed
-				for task, performed in enumerate(phenotype):
-					if performed == env[task]: # "task x was performed" equals "task x was rewarded"
+				tasks = [bool(int(t)) for t in line.split()[-1]] # List of bools for whether the organism performed each respective task
+				for task, performed in enumerate(tasks):
+					if env[task] == 0: # Task is not measured in this environment.
+						continue
+					if (env[task] > 0 and performed) or (env[task] < 0 and not performed): # Task was correctly regulated for this environment
 						p_match_list[i] += 1
 					else:
-						p_match_list[i] -= 1 # This is redundant, but keeps the range of possible scores centered at 0.
-
-		# Move analyze.cfg
-		subprocess.call("mv {} analyze".format(analyze_filename, run_name, env[0], env[1]), shell = True)
+						p_match_list[i] -= 1 # Task was misregulated. This is redundant, but keeps the range of possible scores centered at 0.
 
 	return p_match_list
 
@@ -181,7 +215,7 @@ def main(treatments_list, n_runs, tasks_list):
 	Cycle through all replicates of all treatments to find final dominant org, generate all 1-step mutants from these orgs,
 	and calculate phenotypic match score for base org and mutants
 	treatments_list: names of experimental and control treatments (list of strings)
-	tasks_list: names of tasks rewarded and punished (list of strings)
+	tasks_list: tasks rewarded or punished (list of ints)
 	'''
 	
 	# One process to evaluate base + mutant genotypes of each run
@@ -198,8 +232,7 @@ def main(treatments_list, n_runs, tasks_list):
 			# Get genome
 			filename = "../analysis/{}_{}/final_dom.dat".format(treatment, run)
 			with open(filename, "r") as genome_file:
-				for i in range(6):
-					genome_file.readline()
+				skip_legend(genome_file)
 				genome_str = genome_file.readline().strip()
 			
 			# Save base genome
@@ -219,7 +252,7 @@ def main(treatments_list, n_runs, tasks_list):
 					mutant_file.write("{}\n".format(gen))
 			
 			# Begin processing
-			process_list.append(multiprocessing.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, instruction_set)))
+			process_list.append(multiprocessing.Process(target = evaluate_genomes, args = (treatment, run, genome_str, mutant_list, instruction_set, tasks_list)))
 			process_list[-1].start()
 	
 	# Finish processing
@@ -232,5 +265,5 @@ all_tasks = ["NOT", "NAND", "AND", "ORN", "OR", "ANDN", "NOR", "XOR", "EQU"]
 # Run with three treatments and 10 runs of each
 treatments_list = ["Static", "Changing", "Plastic"]
 n_runs = 10
-tasks_list = all_tasks[:2]
+tasks_list = [1, 1, 1, 1, 0, 0, 0, 0, 0] # Tasks that are included
 main(treatments_list, n_runs, tasks_list)

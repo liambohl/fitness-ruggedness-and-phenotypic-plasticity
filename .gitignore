@@ -3,4 +3,5 @@ analysis.qsub
 makedirs.py
 analyze-mutant-current.cfg
 data
-data/*
+analyze
+default-heads.org
