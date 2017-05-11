@@ -71,7 +71,7 @@ def evaluate_genomes(treatment, run, final_dom_gen, mutant_list, instruction_set
 	
 	# Get phenotypic match scores for base organism and all mutants.
 	n_tasks = tasks_list.count(1)
-	max_score = n_tasks * 2 ^ n_tasks # Number of measured tasks x number of environments
+	max_score = n_tasks * 2 ** n_tasks # Number of measured tasks x number of environments
 	base_score = score_orgs(instruction_set, run_name, environments, 0)[0]
 	score_list = score_orgs(instruction_set, run_name, environments, 1)
 	
