@@ -1,12 +1,13 @@
-The broad goal of this project is to study the effects of phenotypic plasticity on the ruggedness of local fitness landscapes
-TODO: elaborate on more specific goals
+The goal of this project is to study the effects of phenotypic plasticity on the local fitness landscapes of well-adapted organisms.
+Specific attributes of fitness landscapes to measure:
+-distribution of fitness among mutants
+-pleiotropy: the tendency of single mutations to affect more than one trait, where a trait is the expression of one task in one environment
+-epistasis: the tendency of separate mutations to have interacting effects on an organism's phenotype
 
 Steps in executing this project:
 -run_list is submitted through dist_qsub to generate initial avida data.
 	Output to ../data
--Avida is run in analyze mode with analyze.cfg to find the dominant genome for each trial run.
+-Avida is run in analyze mode with analyze.cfg to find the dominant genotype for each trial run.
 	Output to ../analysis
--calc-mutant-fitness.py is run to generate all 1-step mutants and evaluate their phenotype in each environment.
-	Output to ../mutant-fitness
--aggregate-mutant-fitness.py is run to generate summary stats of the phenotypes of n-step mutants in each environment.
+-calc-mutant-fitness.py is run to generate specified mutants from dominants and evaluate their phenotype in each environment.
 	Output to ../mutant-fitness
