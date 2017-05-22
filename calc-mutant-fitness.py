@@ -78,8 +78,8 @@ def evaluate_genomes(treatment, run, sensing, tasks_list, exploration):
 	out_filename = "../offspring-fitness/{}/summary.txt".format(run_name)
 	with open(out_filename, "w") as summary_file:
 		# Max score and base score
-		summary_file.write("{:12s}: {:d}\n".format("Max score", max_score))
-		summary_file.write("{:12s}: {:d}\n".format("Base org", base_score))
+		summary_file.write("{:12s}: {:6.3f}\n".format("Max score", float(max_score)))
+		summary_file.write("{:12s}: {:6.3f}\n".format("Base org", float(base_score)))
 		
 		for i, generation in enumerate(offspring_scores):
 			# Header
@@ -89,9 +89,9 @@ def evaluate_genomes(treatment, run, sensing, tasks_list, exploration):
 			total_mutations = len(generation)
 			mean_score = numpy.mean(generation)
 			stdev_score = numpy.std(generation)
-			summary_file.write("{:12s}: {}\n".format("Sample Size", total_mutations))
-			summary_file.write("{:12s}: {:.3f}\n".format("Mean score", mean_score))
-			summary_file.write("{:12s}: {:.3f}\n\n".format("Standard dev", stdev_score))
+			summary_file.write("{:12s}: {:6d}\n".format("Sample Size", total_mutations))
+			summary_file.write("{:12s}: {:6.3f}\n".format("Mean score", mean_score))
+			summary_file.write("{:12s}: {:6.3f}\n\n".format("Standard dev", stdev_score))
 
 			# Count number of beneficial, deleterious mutations
 			del_mutations, ben_mutations, neu_mutations = 0, 0, 0
@@ -102,9 +102,13 @@ def evaluate_genomes(treatment, run, sensing, tasks_list, exploration):
 					del_mutations += 1
 				else:
 					neu_mutations += 1
-			summary_file.write("{:12}: {:5d} ({:7.2%})\n".format("Deleterious", del_mutations, round(del_mutations / total_mutations, 4)))
-			summary_file.write("{:12}: {:5d} ({:7.2%})\n".format("Neutral", neu_mutations, round(neu_mutations / total_mutations, 4)))
-			summary_file.write("{:12}: {:5d} ({:7.2%})\n".format("Beneficial", ben_mutations, round(ben_mutations / total_mutations, 4)))
+			p_del = round(del_mutations / total_mutations, 4)
+			p_neu = round(neu_mutations / total_mutations, 4)
+			p_ben = round(ben_mutations / total_mutations, 4)
+
+			summary_file.write("{:12}: {:6.2%}\n".format("Deleterious", p_del))
+			summary_file.write("{:12}: {:6.2%}\n".format("Neutral", p_neu))
+			summary_file.write("{:12}: {:6.2%}\n".format("Beneficial", p_ben))
 			
 		# Write all scores with header for each generation
 		summary_file.write("\n")
@@ -184,7 +188,7 @@ def dict_add(d, x):
 	if x in d:
 		d[x] += 1
 	else:
-		d[x] = 0
+		d[x] = 1
 
 def generate_offspring(genome_str, instruction_set, generation, n, mutation_rates):
 	'''
