@@ -50,72 +50,6 @@ def permute_environments(tasks_remaining, environments = None):
 	else:
 		return new_environments
 
-def evaluate_genomes(treatment, run, sensing, tasks_list, exploration):
-	'''
-	Evaluate the phenotype of base organism and sample offspring. Output summary to summary.txt.
-	treatment: name of this treatment - string
-	run: index of this replicate - int
-	sensing: True iff organisms evolved with sensing. Determines which instruction set file to specify in Avida options. - bool
-	tasks_list: which tasks are measured in this treatment - [int]
-	exploration: Number of offspring that have been measured at each generation after the base organism - {int: int}
-	'''
-	# Name of this run
-	run_name = treatment + "_" + str(run)
-	
-	# Build list of environments, find max score
-	n_tasks = tasks_list.count(1)
-	if treatment == "Static":
-		environments = [tasks_list]
-		max_score = n_tasks
-	else:
-		environments = permute_environments(tasks_list)
-		max_score = n_tasks * 2 ** n_tasks # Number of measured tasks x number of environments
-	
-	# Get phenotypic match scores for base organism and all offspring.
-	base_score = score_orgs(sensing, run_name, environments, 0, 1)[0]
-	offspring_scores = [score_orgs(sensing, run_name, environments, generation, exploration[generation]) for generation in exploration]
-	
-	# Output to file
-	out_filename = "../offspring-fitness/{}/summary.txt".format(run_name)
-	with open(out_filename, "w") as summary_file:
-		# Max score and base score
-		summary_file.write("{:12s}: {:6.3f}\n".format("Max score", float(max_score)))
-		summary_file.write("{:12s}: {:6.3f}\n".format("Base org", float(base_score)))
-		
-		for i, generation in enumerate(offspring_scores):
-			# Header
-			summary_file.write("\n---- Step {} -----\n".format(i + 1))
-			
-			# Summary Stats
-			total_mutations = len(generation)
-			mean_score = numpy.mean(generation)
-			stdev_score = numpy.std(generation)
-			summary_file.write("{:12s}: {:6d}\n".format("Sample Size", total_mutations))
-			summary_file.write("{:12s}: {:6.3f}\n".format("Mean score", mean_score))
-			summary_file.write("{:12s}: {:6.3f}\n\n".format("Standard dev", stdev_score))
-
-			# Count number of beneficial, deleterious mutations
-			del_mutations, ben_mutations, neu_mutations = 0, 0, 0
-			for score in generation:
-				if score > base_score:
-					ben_mutations += 1
-				elif score < base_score:
-					del_mutations += 1
-				else:
-					neu_mutations += 1
-			p_del = round(del_mutations / total_mutations, 4)
-			p_neu = round(neu_mutations / total_mutations, 4)
-			p_ben = round(ben_mutations / total_mutations, 4)
-
-			summary_file.write("{:12}: {:6.2%}\n".format("Deleterious", p_del))
-			summary_file.write("{:12}: {:6.2%}\n".format("Neutral", p_neu))
-			summary_file.write("{:12}: {:6.2%}\n".format("Beneficial", p_ben))
-			
-		# Write all scores with header for each generation
-		summary_file.write("\n")
-		score_lines = '\n'.join(["generation {}:\n{}".format(i + 1, generation) for i, generation in enumerate(offspring_scores)])
-		summary_file.write(score_lines)
-
 def score_orgs(sensing, run_name, environments, generation, n):
 	'''
 	Using Avida analyze mode, record tasks performed by each member of the specified generation of offspring in each specified environment.
@@ -182,6 +116,57 @@ def score_orgs(sensing, run_name, environments, generation, n):
 
 	return p_match_scores
 
+def summarize_landscape(treatment, run, max_score, base_score, offspring_scores):
+	'''
+	Summarize this mutational landscape in summary.txt.
+		More detail needed!
+	treatment: name of this treatment - string
+	run: index of this replicate - int
+	max_score: Highest possible phenotypic match score in this treatment - int
+	base_score: Phenotypic match score of base organism - int
+	offspring_scores: - Phenotypic match score of each sample offspring from each generation - [[int]]
+	'''
+	# Output to file
+	out_filename = "../offspring-fitness/{}_{}/summary.txt".format(treatment, run)
+	with open(out_filename, "w") as summary_file:
+		# Max score and base score
+		summary_file.write("{:12s}: {:6.3f}\n".format("Max score", float(max_score)))
+		summary_file.write("{:12s}: {:6.3f}\n".format("Base org", float(base_score)))
+		
+		for i, generation in enumerate(offspring_scores):
+			# Header
+			summary_file.write("\n---- Step {} -----\n".format(i + 1))
+			
+			# Summary Stats
+			total_mutations = len(generation)
+			mean_score = numpy.mean(generation)
+			stdev_score = numpy.std(generation)
+			summary_file.write("{:12s}: {:6d}\n".format("Sample Size", total_mutations))
+			summary_file.write("{:12s}: {:6.3f}\n".format("Mean score", mean_score))
+			summary_file.write("{:12s}: {:6.3f}\n\n".format("Standard dev", stdev_score))
+
+			# Count number of beneficial, deleterious mutations
+			del_mutations, ben_mutations, neu_mutations = 0, 0, 0
+			for score in generation:
+				if score > base_score:
+					ben_mutations += 1
+				elif score < base_score:
+					del_mutations += 1
+				else:
+					neu_mutations += 1
+			p_del = round(del_mutations / total_mutations, 4)
+			p_neu = round(neu_mutations / total_mutations, 4)
+			p_ben = round(ben_mutations / total_mutations, 4)
+
+			summary_file.write("{:12}: {:6.2%}\n".format("Deleterious", p_del))
+			summary_file.write("{:12}: {:6.2%}\n".format("Neutral", p_neu))
+			summary_file.write("{:12}: {:6.2%}\n".format("Beneficial", p_ben))
+			
+		# Write all scores with header for each generation
+		summary_file.write("\n")
+		score_lines = '\n'.join(["generation {}:\n{}".format(i + 1, generation) for i, generation in enumerate(offspring_scores)])
+		summary_file.write(score_lines)
+
 def dict_add(d, x):
 	'''
 	Add x to dict d or increase d[x]
@@ -233,49 +218,91 @@ def generate_offspring(genome_str, instruction_set, generation, n, mutation_rate
 
 		dict_add(offspring_dict, new_genome) # Add the new genome
 	return offspring_dict
+
+def save_genomes(treatment, run, exploration, mutation_rates):
+	'''
+	For base organism and each future generation, generate a .spop file with nothing but genome sequences.
+		These are used for evaluating each organism's phenotype.
+	treatment: name of this treatment - string
+	run: index of this replicate - int
+	exploration: Number of offspring that have been measured at each generation after the base organism - {int: int}
+	mutation_rates: probabilities of specific mutation types - see end of script for detailed description - {string: float}
+	'''
+	# Get genome
+	filename = "../analysis/{}_{}/final_dom.dat".format(treatment, run)
+	with open(filename, "r") as genome_file:
+		skip_legend(genome_file)
+		genome_str = genome_file.readline().strip()
+	
+	# Formatting info for Avida parser
+	formatting_lines = "#filetype genotype_data\n#format sequence\n\n# Legend:\n# 1: Genome Sequence\n\n"
+	
+	# Save base genome
+	base_filename = "../offspring-fitness/{}_{}/gen-step-0.spop".format(treatment, run)
+	with open(base_filename, "w") as genome_file:
+		genome_file.write(formatting_lines)
+		genome_file.write(genome_str)
+	
+	# Generate and save all specified offspring
+	for generation in exploration:
+		offspring_dict = generate_offspring(genome_str, instruction_alphabet, generation, exploration[generation], mutation_rates)
+		# Output offspring genomes to file
+		offspring_filename = "../offspring-fitness/{}_{}/gen-step-{}.spop".format(treatment, run, generation)
+		with open(offspring_filename, "w") as offspring_file:
+			offspring_file.write(formatting_lines)
+			for gen in offspring_dict:
+				# Write the offspring genome as many times as it was generated.
+				for i in range(offspring_dict[gen]):
+					offspring_file.write("{}\n".format(gen))
+			
+def explore_landscape(treatment, run, tasks_list, exploration, mutation_rates):
+	'''
+	Find final dominant organism for this run, explore its potential offspring through specified generations,
+		collect and summarize data on their phenotypes.
+	treatment: name of this treatment - string
+	run: index of this replicate - int
+	tasks_list: which tasks are measured in this treatment - [int]
+	exploration: Number of offspring that have been measured at each generation after the base organism - {int: int}
+	mutation_rates: probabilities of specific mutation types - see end of script for detailed description - {string: float}
+	'''
+	# Generate .spop files with base org and sample offspring genomes
+	save_genomes(treatment, run, exploration, mutation_rates)
+	
+	# Build list of environments, find max possible score
+	n_tasks = len(tasks_list) - tasks_list.count(0)
+	if treatment == "Static":
+		environments = [tasks_list]
+		max_score = n_tasks
+	else:
+		environments = permute_environments(tasks_list)
+		max_score = n_tasks * 2 ** n_tasks # Number of measured tasks x number of environments
+	
+	# Extra scoring variables
+	sensing = (treatment == "Plastic") # If sensing is true, organisms are given sensing instructions.
+	run_name = "{}_{}".format(treatment, run) # Name of this run
+
+	# Get phenotypic match scores for base organism and all offspring.
+	base_score = score_orgs(sensing, run_name, environments, 0, 1)[0]
+	offspring_scores = [score_orgs(sensing, run_name, environments, generation, exploration[generation]) for generation in exploration]
+	
+	# Summarize base org and offspring phenotypes for this run
+	summarize_landscape(treatment, run, max_score, base_score, offspring_scores)
 	
 def main(treatments_list, n_runs, tasks_list, exploration, mutation_rates):
 	'''
 	Cycle through all replicates of all treatments to find final dominant org, generate near offspring from these orgs,
-	and calculate phenotypic match score for base org and offspring
+		and calculate phenotypic match score for base org and offspring
 	treatments_list: names of experimental and control treatments - [string]
 	tasks_list: tasks rewarded or punished - [int]
-	exploration: max number of offspring to explore at each Hamming distance from base organism, 0 for exhaustive - {int: int}
+	exploration: max number of offspring to explore at each generation - {int: int}
 	'''
 	# One process to evaluate landscape of each run
 	process_list = []
 		
 	for start, treatment in enumerate(treatments_list):
-		# Decide whether to use sensing instruction set
-		sensing = (treatment == "Plastic")
-		
 		for run in range(100 * start, 100 * start + n_runs):
-			# Get genome
-			filename = "../analysis/{}_{}/final_dom.dat".format(treatment, run)
-			with open(filename, "r") as genome_file:
-				skip_legend(genome_file)
-				genome_str = genome_file.readline().strip()
-			
-			# Save base genome
-			base_filename = "../offspring-fitness/{}_{}/gen-step-0.spop".format(treatment, run)
-			with open(base_filename, "w") as genome_file:
-				genome_file.write("#filetype genotype_data\n#format sequence\n\n# Legend:\n# 1: Genome Sequence\n\n") # Formatting info for Avida parser
-				genome_file.write(genome_str)
-			
-			# Generate and save all specified offspring
-			for generation in exploration:
-				offspring_dict = generate_offspring(genome_str, instruction_alphabet, generation, exploration[generation], mutation_rates)
-				# Output offspring genomes to file
-				offspring_filename = "../offspring-fitness/{}_{}/gen-step-{}.spop".format(treatment, run, generation)
-				with open(offspring_filename, "w") as offspring_file:
-					offspring_file.write("#filetype genotype_data\n#format sequence\n\n# Legend:\n# 1: Genome Sequence\n\n") # Formatting info for Avida parser
-					for gen in offspring_dict:
-						# Write the offspring genome as many times as it was generated.
-						for i in range(offspring_dict[gen]):
-							offspring_file.write("{}\n".format(gen))
-			
 			# Begin processing
-			process_list.append(multiprocessing.Process(target = evaluate_genomes, args = (treatment, run, sensing, tasks_list, exploration)))
+			process_list.append(multiprocessing.Process(target = explore_landscape, args = (treatment, run, tasks_list, exploration, mutation_rates)))
 			process_list[-1].start()
 	
 	# Finish processing
@@ -292,5 +319,5 @@ mutation_rates = {"copy_mut": 0.0075, "divide_ins": 0.05, "divide_del": 0.05}
 treatments_list = ["Static", "Changing", "Plastic"]
 n_runs = 10
 tasks_list = [1, 1, 0, 0, 0, 0, 0, 0, 0] # Tasks that are included
-exploration = {1: 10000, 2: 10000, 3: 10000} # Max number of offspring to explore at each Hamming distance from base organism
+exploration = {1: 10000, 2: 10000, 3: 10000} # Max number of offspring to explore at each generation
 main(treatments_list, n_runs, tasks_list, exploration, mutation_rates)
