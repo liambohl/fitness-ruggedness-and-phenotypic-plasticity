@@ -16,6 +16,7 @@ instruction_alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHI"
 def skip_legend(f):
 	'''
 	move to first line of real data in file f.
+	f: file pointer object
 	'''
 	legend = False
 	while True:
@@ -28,9 +29,9 @@ def skip_legend(f):
 def permute_environments(tasks_remaining, environments = None):
 	'''
 	Expand the given list of environments to include all possibilities of next task.
-	environments: all permutations of values for previous tasks (list of tuples)
-	tasks_remaining: which tasks are measured in this experiment (list of ints)
-	returns: expanded list of environments
+	environments: all permutations of values for previous tasks - [[int]]
+	tasks_remaining: which tasks are measured in this experiment - [int]
+	returns: expanded list of environments - [[int]]
 	'''
 	if environments == None:
 		environments = [[]]
@@ -52,11 +53,11 @@ def permute_environments(tasks_remaining, environments = None):
 def evaluate_genomes(treatment, run, sensing, tasks_list, exploration):
 	'''
 	Evaluate the phenotype of base organism and sample offspring. Output summary to summary.txt.
-	treatment: name of this treatment (string)
-	run: index of this replicate (int)
-	sensing: True iff organisms evolved with sensing. Determines which instruction set file to specify in Avida options. (bool)
-	tasks_list: which tasks are measured in this treatment [int]
-	exploration: Number of offspring that have been measured at each generation after the base organism {int: int}
+	treatment: name of this treatment - string
+	run: index of this replicate - int
+	sensing: True iff organisms evolved with sensing. Determines which instruction set file to specify in Avida options. - bool
+	tasks_list: which tasks are measured in this treatment - [int]
+	exploration: Number of offspring that have been measured at each generation after the base organism - {int: int}
 	'''
 	# Name of this run
 	run_name = treatment + "_" + str(run)
@@ -119,12 +120,12 @@ def score_orgs(sensing, run_name, environments, generation, n):
 	'''
 	Using Avida analyze mode, record tasks performed by each member of the specified generation of offspring in each specified environment.
 		Score how well each organism matches its behavior to the environment (phenotypic match score)
-	sensing: True iff organisms evolved with sensing. Determines which instruction set file to specify in Avida options. (bool)
-	run_name: treatment and replicate number (string)
-	environments: tuple of environments; each environment is a tuple of reaction values for each task ((int))
-	generation: number of generations into the future from the base genome (int)
-	n: number of sample offspring that have been measured for this generation (int)
-	returns: list of phenotypic match scores for sample offspring in this generation [int]
+	sensing: True iff organisms evolved with sensing. Determines which instruction set file to specify in Avida options. - bool
+	run_name: treatment and replicate number - string
+	environments: list of environments; each environment is a list of reaction values for each task - [[int]]
+	generation: number of generations into the future from the base genome - int
+	n: number of sample offspring that have been measured for this generation - int
+	returns: list of phenotypic match scores for sample offspring in this generation - [int]
 	'''
 	# Set name of instruction set file
 	if sensing:
@@ -184,6 +185,8 @@ def score_orgs(sensing, run_name, environments, generation, n):
 def dict_add(d, x):
 	'''
 	Add x to dict d or increase d[x]
+	d: dict of unspecified type - {?: int}
+	x: item to be counted - same type as dictionary keys
 	'''
 	if x in d:
 		d[x] += 1
@@ -193,12 +196,12 @@ def dict_add(d, x):
 def generate_offspring(genome_str, instruction_set, generation, n, mutation_rates):
 	'''
 	Generate a random sample of possible descendents at the given generation from the given genome
-	genome_str: base organism genome (string with each instruction as one character)
-	instruction_set: set of characters used to represent instructions (string)
-	generation: number of generations into the future from the base genome (int)
-	n: number of offspring to generate from this generation (int)
-	mutation_rates: probabilities of specific mutation types - see end of script for detailed description {string: float}
-	return: dict of possible offspring genomes and their frequencies {string: int}
+	genome_str: base organism genome with one character per instruction - string
+	instruction_set: set of characters used to represent instructions - string
+	generation: number of generations into the future from the base genome - int
+	n: number of offspring to generate from this generation - int
+	mutation_rates: probabilities of specific mutation types - see end of script for detailed description - {string: float}
+	return: dict of possible offspring genomes and their frequencies - {string: int}
 	'''
 	a = len(instruction_set)
 
@@ -235,9 +238,9 @@ def main(treatments_list, n_runs, tasks_list, exploration, mutation_rates):
 	'''
 	Cycle through all replicates of all treatments to find final dominant org, generate near offspring from these orgs,
 	and calculate phenotypic match score for base org and offspring
-	treatments_list: names of experimental and control treatments (list of strings)
-	tasks_list: tasks rewarded or punished (list of ints)
-	exploration: max number of offspring to explore at each Hamming distance from base organism, 0 for exhaustive (dict - ints: ints)
+	treatments_list: names of experimental and control treatments - [string]
+	tasks_list: tasks rewarded or punished - [int]
+	exploration: max number of offspring to explore at each Hamming distance from base organism, 0 for exhaustive - {int: int}
 	'''
 	# One process to evaluate landscape of each run
 	process_list = []
