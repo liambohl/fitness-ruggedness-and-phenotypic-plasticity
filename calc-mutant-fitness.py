@@ -178,7 +178,7 @@ def dict_add(d, x):
 	else:
 		d[x] = 1
 
-def generate_offspring(genome_str, instruction_set, generation, n, mutation_rates):
+def generate_offspring(genome_str, instruction_set, generation, n, mutation_rates, seed):
 	'''
 	Generate a random sample of possible descendents at the given generation from the given genome
 	genome_str: base organism genome with one character per instruction - string
@@ -186,8 +186,10 @@ def generate_offspring(genome_str, instruction_set, generation, n, mutation_rate
 	generation: number of generations into the future from the base genome - int
 	n: number of offspring to generate from this generation - int
 	mutation_rates: probabilities of specific mutation types - see end of script for detailed description - {string: float}
+	seed: random number seed (use same seed as original Avida runs) - int
 	return: dict of possible offspring genomes and their frequencies - {string: int}
 	'''
+	random.seed(seed)
 	a = len(instruction_set)
 
 	offspring_dict = {} # Offspring and frequencies for this generation
@@ -245,7 +247,7 @@ def save_genomes(treatment, run, exploration, mutation_rates):
 	
 	# Generate and save all specified offspring
 	for generation in exploration:
-		offspring_dict = generate_offspring(genome_str, instruction_alphabet, generation, exploration[generation], mutation_rates)
+		offspring_dict = generate_offspring(genome_str, instruction_alphabet, generation, exploration[generation], mutation_rates, run)
 		# Output offspring genomes to file
 		offspring_filename = "../offspring-fitness/{}_{}/gen-step-{}.spop".format(treatment, run, generation)
 		with open(offspring_filename, "w") as offspring_file:
@@ -318,6 +320,6 @@ mutation_rates = {"copy_mut": 0.0075, "divide_ins": 0.05, "divide_del": 0.05}
 # Run with three treatments and 10 runs of each
 treatments_list = ["Static", "Changing", "Plastic"]
 n_runs = 10
-tasks_list = [1, 1, 0, 0, 0, 0, 0, 0, 0] # Tasks that are included
+tasks_list = [1, 1, 1, 1, 0, 0, 0, 0, 0] # Tasks that are included
 exploration = {1: 10000, 2: 10000, 3: 10000} # Max number of offspring to explore at each generation
 main(treatments_list, n_runs, tasks_list, exploration, mutation_rates)
