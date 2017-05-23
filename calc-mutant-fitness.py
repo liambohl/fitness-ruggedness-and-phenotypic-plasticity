@@ -98,7 +98,7 @@ def score_orgs(sensing, run_name, environments, generation, n):
 					analyze_file.write(line)
 		
 		# Run Avida in analyze mode
-		subprocess.call("./avida -a -set ANALYZE_FILE {} -def INST_SET {} -set EVENT_FILE events-static.cfg -set VERBOSITY 0".format(analyze_filename, inst_set), shell = True)
+		subprocess.call("./avida -a -set ANALYZE_FILE {} -def INST_SET {} -set EVENT_FILE events/template.cfg -set VERBOSITY 0".format(analyze_filename, inst_set), shell = True)
 		
 		# Score phenotypic match in this environment
 		with open("data/{}".format(output_filename), "r") as dat_file:
